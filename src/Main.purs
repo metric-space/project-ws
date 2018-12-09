@@ -1,15 +1,21 @@
 module Main where
 
 import Prelude
-import Data.Array         ((!!), length, mapWithIndex)
-import Data.Int           (toNumber)
-import Data.Maybe         (fromMaybe, Maybe(..))
-import Data.Traversable   (traverse_)
-import Effect             (Effect)
-import Effect.Console     (log)
-import Graphics.Canvas    (getCanvasElementById, getContext2D, setCanvasHeight, 
-                           setCanvasWidth, Context2D, Rectangle(..), 
-                           setFillStyle, fillRect, fillText, strokeRect, CanvasElement)
+import Control.MonadZero     (guard)
+import Data.Array            ((!!), length, mapWithIndex)
+import Data.Bifunctor        (lmap, rmap)
+import Data.Int              (toNumber)
+import Data.Maybe            (fromMaybe, maybe, Maybe(..))
+import Data.Traversable      (traverse_)
+import Data.Tuple            (Tuple(..))
+import Effect                (Effect)
+import Effect.Console        (log)
+import FRP.Behavior          (unfold, animate)
+import FRP.Behavior.Keyboard (keys)
+import FRP.Event.Keyboard    (Keyboard, getKeyboard, down)
+import Graphics.Canvas       (getCanvasElementById, getContext2D, setCanvasHeight, 
+                              setCanvasWidth, setStrokeStyle, Context2D, Rectangle(..), 
+                              setFillStyle, fillRect, fillText, strokeRect, CanvasElement)
 
 
 play_map :: Array (Array Int)
@@ -39,6 +45,14 @@ play_map = [
   [1,4,4,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ]
+
+
+map_width :: Int
+map_width = length play_map
+
+
+map_height :: Int
+map_height = length <<< fromMaybe [] $ (play_map !! 0)
 
 
 block_width :: Int
@@ -74,6 +88,10 @@ to_nurect i j x bw bh = { r: rectangle, colour: (show x)}
                                             height: (toNumber bh)}
 
 
+play_map_ :: Array (Array NuRectangle)
+play_map_ = play_map_to_nurect_array block_width block_height play_map
+
+
 -- big fat code smell here
 play_map_to_nurect_array :: Int -> Int  -> Array (Array Int) -> Array (Array NuRectangle)
 play_map_to_nurect_array block_w block_h play_map = 
@@ -96,20 +114,61 @@ render_play_map :: Context2D -> Array (Array NuRectangle) -> Effect Unit
 render_play_map ctx x = traverse_ (traverse_ (render_nu_rect ctx)) x  
  
 
+-- ============================================================================
+--
+--                  Animation stuff  
+--
+-- ============================================================================
+
+
+
+
+guard_against :: Tuple Int Int -> Maybe (Tuple Int Int)
+guard_against (Tuple x y) = do
+                              a <- play_map !! x
+                              b <- a !! y 
+                              guard $ b == 0
+                              pure (Tuple x y)
+
+
+movement :: String -> Tuple Int Int -> Tuple Int Int
+movement svalue  a@(Tuple x y) = case svalue of "ArrowUp"  -> fromMaybe a (guard_against (rmap (_ - 1) a))
+                                                "ArrowDown"  -> fromMaybe a (guard_against (rmap (_ + 1) a))
+                                                "ArrowLeft"  -> fromMaybe a (guard_against (lmap (_ - 1) a))
+                                                "ArrowRight" -> fromMaybe a (guard_against (lmap (_ + 1) a))
+                                                _ -> Tuple x y
+
+
+animation_fn :: Context2D -> Tuple Int Int -> Effect Unit
+animation_fn ctx (Tuple x y) = do
+                                  render_play_map ctx play_map_
+                                  setFillStyle ctx "rgba(187, 143, 206, 0.5)"
+                                  fillRect ctx {x: toNumber (x*block_width), 
+                                                  y: toNumber (y*block_height), 
+                                                  width: toNumber block_width, 
+                                                  height: toNumber block_height}
+
+
+-- =====================================================================================
+
 get_crackin :: CanvasElement -> Int -> Int -> Effect Unit
 get_crackin canvas w h  = do
-    let play_map_ = play_map_to_nurect_array block_width block_height play_map
     ctx <- getContext2D canvas
     _ <- setCanvasWidth canvas (toNumber w)
     _ <- setCanvasHeight canvas (toNumber h)
 
     render_play_map ctx play_map_
+    _ <- animate (unfold movement down (Tuple 1 1)) (animation_fn ctx) 
+    pure unit
+    
+    
+    
 
 
 main :: Effect Unit
 main = do
-  let w = (length $ play_map) * block_width
-      h = (length <<< fromMaybe [] $ (play_map !! 0)) * block_height
+  let w = map_width * block_width
+      h = map_height * block_height
   canvas <- getCanvasElementById "canvas" 
   case canvas of Nothing -> log "Canvas element not found!! check ID!!"
                  Just c -> get_crackin c w h 
