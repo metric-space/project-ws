@@ -1,6 +1,7 @@
 module Main where
 
 import Prelude
+import Control.Alt           (alt)
 import Control.MonadZero     (guard)
 import Data.Array            ((!!), length, mapWithIndex)
 import Data.Bifunctor        (lmap, rmap)
@@ -10,9 +11,8 @@ import Data.Traversable      (traverse_)
 import Data.Tuple            (Tuple(..))
 import Effect                (Effect)
 import Effect.Console        (log)
-import FRP.Behavior          (unfold, animate)
-import FRP.Behavior.Keyboard (keys)
-import FRP.Event.Keyboard    (Keyboard, getKeyboard, down)
+import FRP.Event             (subscribe, fold, Event)
+import FRP.Event.Keyboard    (down)
 import Graphics.Canvas       (getCanvasElementById, getContext2D, setCanvasHeight, 
                               setCanvasWidth, setStrokeStyle, Context2D, Rectangle(..), 
                               setFillStyle, fillRect, fillText, strokeRect, CanvasElement)
@@ -141,6 +141,7 @@ movement svalue  a@(Tuple x y) = case svalue of "ArrowUp"  -> fromMaybe a (guard
 
 animation_fn :: Context2D -> Tuple Int Int -> Effect Unit
 animation_fn ctx (Tuple x y) = do
+                                  -- log "rendered"
                                   render_play_map ctx play_map_
                                   setFillStyle ctx "rgba(187, 143, 206, 0.5)"
                                   fillRect ctx {x: toNumber (x*block_width), 
@@ -150,6 +151,21 @@ animation_fn ctx (Tuple x y) = do
 
 
 -- =====================================================================================
+--
+--                   FRP events
+--
+-- =====================================================================================
+
+
+down_with_init_point :: Event String
+down_with_init_point = pure "e" `alt` down
+
+
+position_stream ::(Tuple Int Int) ->  Event (Tuple Int Int)
+position_stream i = fold movement down_with_init_point i 
+
+-- ===================================================================================
+
 
 get_crackin :: CanvasElement -> Int -> Int -> Effect Unit
 get_crackin canvas w h  = do
@@ -158,7 +174,7 @@ get_crackin canvas w h  = do
     _ <- setCanvasHeight canvas (toNumber h)
 
     render_play_map ctx play_map_
-    _ <- animate (unfold movement down (Tuple 1 1)) (animation_fn ctx) 
+    _ <- subscribe (position_stream (Tuple 1 1)) (animation_fn ctx) 
     pure unit
     
     
