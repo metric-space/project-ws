@@ -4,8 +4,8 @@ import Prelude
 import Control.Alt           (alt)
 import Control.MonadZero     (guard)
 import Data.Array            ((!!), length, mapWithIndex)
-import Data.Bifunctor        (lmap, rmap)
-import Data.Int              (toNumber)
+import Data.Bifunctor        (bimap, lmap, rmap)
+import Data.Int              (toNumber, floor)
 import Data.Maybe            (fromMaybe, maybe, Maybe(..))
 import Data.Traversable      (traverse_)
 import Data.Tuple            (Tuple(..))
@@ -15,7 +15,9 @@ import FRP.Event             (subscribe, fold, Event)
 import FRP.Event.Keyboard    (down)
 import Graphics.Canvas       (getCanvasElementById, getContext2D, setCanvasHeight, 
                               setCanvasWidth, setStrokeStyle, Context2D, Rectangle(..), 
-                              setFillStyle, fillRect, fillText, strokeRect, CanvasElement)
+                              setFillStyle, fillRect, fillText, strokeRect, CanvasElement,
+                              lineTo, stroke, moveTo)
+import Math                  (cos, sin)
 
 
 play_map :: Array (Array Int)
@@ -55,12 +57,25 @@ map_height :: Int
 map_height = length <<< fromMaybe [] $ (play_map !! 0)
 
 
-block_width :: Int
-block_width = 30
+block_width :: Number
+block_width = 30.0
 
 
-block_height :: Int
-block_height = 30
+block_height :: Number
+block_height = 30.0
+
+
+vel :: Number
+vel = 0.15
+
+
+rvel :: Number
+rvel = 0.09
+
+
+type State = { pos :: Tuple Number Number,
+               dir :: Tuple Number Number,
+               cam :: Tuple Number Number }
 
 
 string_to_color :: String -> String
@@ -74,18 +89,18 @@ string_to_color _   = "white"
 type NuRectangle = { r :: Rectangle , colour  :: String }
 
 
-to_nurect :: Int -> Int -> Int -> Int -> Int ->  NuRectangle
+to_nurect :: Int -> Int -> Int -> Number -> Number ->  NuRectangle
 to_nurect i j x bw bh = { r: rectangle, colour: (show x)} 
                          where x_coord :: Number
-                               x_coord = toNumber (i*bw)
+                               x_coord = (toNumber i)*bw
 
                                y_coord :: Number
-                               y_coord =  toNumber (j*bh)
+                               y_coord =  (toNumber j)*bh
 
                                rectangle :: Rectangle 
                                rectangle = {x: x_coord, y: y_coord, 
-                                            width: (toNumber bw), 
-                                            height: (toNumber bh)}
+                                            width:  bw, 
+                                            height: bh}
 
 
 play_map_ :: Array (Array NuRectangle)
@@ -93,7 +108,7 @@ play_map_ = play_map_to_nurect_array block_width block_height play_map
 
 
 -- big fat code smell here
-play_map_to_nurect_array :: Int -> Int  -> Array (Array Int) -> Array (Array NuRectangle)
+play_map_to_nurect_array :: Number -> Number  -> Array (Array Int) -> Array (Array NuRectangle)
 play_map_to_nurect_array block_w block_h play_map = 
   mapWithIndex inner_func  play_map
 
@@ -121,33 +136,78 @@ render_play_map ctx x = traverse_ (traverse_ (render_nu_rect ctx)) x
 -- ============================================================================
 
 
+move_up :: State -> State
+move_up s =  s { pos = add s.pos (bimap (_ * vel) (_ * vel) s.dir)}
 
 
-guard_against :: Tuple Int Int -> Maybe (Tuple Int Int)
-guard_against (Tuple x y) = do
-                              a <- play_map !! x
-                              b <- a !! y 
-                              guard $ b == 0
-                              pure (Tuple x y)
+move_down :: State -> State
+move_down s = s { pos = sub s.pos (bimap (_ * vel)  (_ * vel) s.dir)}
 
 
-movement :: String -> Tuple Int Int -> Tuple Int Int
-movement svalue  a@(Tuple x y) = case svalue of "ArrowUp"  -> fromMaybe a (guard_against (rmap (_ - 1) a))
-                                                "ArrowDown"  -> fromMaybe a (guard_against (rmap (_ + 1) a))
-                                                "ArrowLeft"  -> fromMaybe a (guard_against (lmap (_ - 1) a))
-                                                "ArrowRight" -> fromMaybe a (guard_against (lmap (_ + 1) a))
-                                                _ -> Tuple x y
+rotate_vector :: Number -> (Tuple Number Number) -> (Tuple Number Number)
+rotate_vector angle (Tuple x y) = let x_ = x*(cos angle)-y*(sin angle)
+                                      y_ = x*(sin  angle) + y*(cos angle)
+                                  in (Tuple x_ y_)
 
 
-animation_fn :: Context2D -> Tuple Int Int -> Effect Unit
-animation_fn ctx (Tuple x y) = do
-                                  -- log "rendered"
-                                  render_play_map ctx play_map_
-                                  setFillStyle ctx "rgba(187, 143, 206, 0.5)"
-                                  fillRect ctx {x: toNumber (x*block_width), 
-                                                  y: toNumber (y*block_height), 
-                                                  width: toNumber block_width, 
-                                                  height: toNumber block_height}
+
+rotate_cw :: State -> State
+rotate_cw a =  a {dir = rotate_vector rvel a.dir , 
+                  cam = rotate_vector rvel a.cam}
+
+
+rotate_ccw :: State -> State
+rotate_ccw a =  a {dir = rotate_vector (-rvel) a.dir 
+                 , cam = rotate_vector (-rvel) a.cam}
+
+
+guard_against :: State -> Maybe State
+guard_against z@{pos: (Tuple x y)} = do 
+                                      let x_ = floor x 
+                                          y_ = floor y 
+                                      a <- play_map !! x_ 
+                                      b <- a !! y_ 
+                                      guard $ b == 0 
+                                      pure z
+
+
+movement :: String -> State  -> State
+movement svalue  s = case svalue of "ArrowUp" -> fromMaybe s (guard_against <<< move_up $ s)
+                                    "ArrowDown" -> fromMaybe s (guard_against <<< move_down $ s)
+                                    "ArrowLeft" -> rotate_ccw s
+                                    "ArrowRight" -> rotate_cw s
+                                    _ -> s
+
+
+draw_line :: Context2D -> Tuple Number Number -> Tuple  Number Number -> Effect Unit
+draw_line ctx (Tuple x1 y1) (Tuple x2 y2) = do
+                                             moveTo ctx (x1*block_width) (y1*block_height)
+                                             lineTo ctx (x2*block_width) (y2*block_height)
+                                             stroke ctx
+
+
+animation_fn :: Context2D -> State -> Effect Unit
+animation_fn ctx a@{pos: (Tuple x_ y_)} = do
+                                          let x = floor x_
+                                              y = floor y_
+                                          log "rendered"
+                                          log <<< show $ a.pos
+                                          log <<< show $ a.dir
+                                          log ((show  x) <> "," <> (show y))
+                                          render_play_map ctx play_map_
+                                          -- render block
+                                          setFillStyle ctx "rgba(187, 143, 206, 0.5)"
+                                          fillRect ctx {x: (toNumber x)*block_width, 
+                                                        y: (toNumber y)*block_height, 
+                                                        width: block_width, 
+                                                        height: block_height}
+                                          -- render arrow
+                                          setStrokeStyle ctx "green"
+                                          draw_line ctx a.pos (add a.pos a.dir)
+                                          setStrokeStyle ctx "black"
+                                          -- render dot
+                                          setFillStyle ctx "red"
+                                          fillRect ctx {x: x_*block_width, y: y_*block_height, width:3.0, height: 3.0 }
 
 
 -- =====================================================================================
@@ -161,20 +221,24 @@ down_with_init_point :: Event String
 down_with_init_point = pure "e" `alt` down
 
 
-position_stream ::(Tuple Int Int) ->  Event (Tuple Int Int)
+position_stream :: State ->  Event State
 position_stream i = fold movement down_with_init_point i 
 
 -- ===================================================================================
 
+init_state :: State
+init_state = {pos: Tuple 1.0 1.0, 
+              dir: Tuple (-1.0) 0.0, 
+              cam: Tuple 0.0 0.66}
 
-get_crackin :: CanvasElement -> Int -> Int -> Effect Unit
+get_crackin :: CanvasElement -> Number -> Number -> Effect Unit
 get_crackin canvas w h  = do
     ctx <- getContext2D canvas
-    _ <- setCanvasWidth canvas (toNumber w)
-    _ <- setCanvasHeight canvas (toNumber h)
+    _ <- setCanvasWidth canvas w
+    _ <- setCanvasHeight canvas h
 
     render_play_map ctx play_map_
-    _ <- subscribe (position_stream (Tuple 1 1)) (animation_fn ctx) 
+    _ <- subscribe (position_stream init_state) (animation_fn ctx) 
     pure unit
     
     
@@ -183,8 +247,8 @@ get_crackin canvas w h  = do
 
 main :: Effect Unit
 main = do
-  let w = map_width * block_width
-      h = map_height * block_height
+  let w = (toNumber map_width) * block_width
+      h = (toNumber map_height) * block_height
   canvas <- getCanvasElementById "canvas" 
   case canvas of Nothing -> log "Canvas element not found!! check ID!!"
                  Just c -> get_crackin c w h 
