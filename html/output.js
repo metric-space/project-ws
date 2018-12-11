@@ -25027,19 +25027,21 @@ var FRP_Event = require("../FRP.Event/index.js");
 var FRP_Event_Class = require("../FRP.Event.Class/index.js");
 var FRP_Event_Keyboard = require("../FRP.Event.Keyboard/index.js");
 var Graphics_Canvas = require("../Graphics.Canvas/index.js");
+var $$Math = require("../Math/index.js");
 var Prelude = require("../Prelude/index.js");
+var vel = 0.15;
 var to_nurect = function (i) {
     return function (j) {
         return function (x) {
             return function (bw) {
                 return function (bh) {
-                    var y_coord = Data_Int.toNumber(j * bh | 0);
-                    var x_coord = Data_Int.toNumber(i * bw | 0);
+                    var y_coord = Data_Int.toNumber(j) * bh;
+                    var x_coord = Data_Int.toNumber(i) * bw;
                     var rectangle = {
                         x: x_coord,
                         y: y_coord,
-                        width: Data_Int.toNumber(bw),
-                        height: Data_Int.toNumber(bh)
+                        width: bw,
+                        height: bh
                     };
                     return {
                         r: rectangle,
@@ -25064,6 +25066,28 @@ var string_to_color = function (v) {
         return "green";
     };
     return "white";
+};
+var rvel = 9.0e-2;
+var rotate_vector = function (angle) {
+    return function (v) {
+        var y_ = v.value0 * $$Math.sin(angle) + v.value1 * $$Math.cos(angle);
+        var x_ = v.value0 * $$Math.cos(angle) - v.value1 * $$Math.sin(angle);
+        return new Data_Tuple.Tuple(x_, y_);
+    };
+};
+var rotate_cw = function (a) {
+    return {
+        pos: a.pos,
+        dir: rotate_vector(rvel)(a.dir),
+        cam: rotate_vector(rvel)(a.cam)
+    };
+};
+var rotate_ccw = function (a) {
+    return {
+        pos: a.pos,
+        dir: rotate_vector(-rvel)(a.dir),
+        cam: rotate_vector(-rvel)(a.cam)
+    };
 };
 var render_nu_rect = function (ctx) {
     return function (r) {
@@ -25098,61 +25122,113 @@ var play_map_to_nurect_array = function (block_w) {
     };
 };
 var play_map = [ [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ], [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 3, 0, 3, 0, 3, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 2, 2, 0, 2, 2, 0, 0, 0, 0, 3, 0, 3, 0, 3, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 4, 0, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 4, 0, 0, 0, 0, 5, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 4, 0, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 4, 0, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 ], [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ] ];
+var move_up = function (s) {
+    return {
+        pos: Data_Semiring.add(Data_Tuple.semiringTuple(Data_Semiring.semiringNumber)(Data_Semiring.semiringNumber))(s.pos)(Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(function (v1) {
+            return v1 * vel;
+        })(function (v1) {
+            return v1 * vel;
+        })(s.dir)),
+        dir: s.dir,
+        cam: s.cam
+    };
+};
+var move_down = function (s) {
+    return {
+        pos: Data_Ring.sub(Data_Tuple.ringTuple(Data_Ring.ringNumber)(Data_Ring.ringNumber))(s.pos)(Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(function (v1) {
+            return v1 * vel;
+        })(function (v1) {
+            return v1 * vel;
+        })(s.dir)),
+        dir: s.dir,
+        cam: s.cam
+    };
+};
 var map_width = Data_Array.length(play_map);
 var map_height = Data_Array.length(Data_Maybe.fromMaybe([  ])(Data_Array.index(play_map)(0)));
+var init_state = {
+    pos: new Data_Tuple.Tuple(1.0, 1.0),
+    dir: new Data_Tuple.Tuple(-1.0, 0.0),
+    cam: new Data_Tuple.Tuple(0.0, 0.66)
+};
 var guard_against = function (v) {
-    return Control_Bind.bind(Data_Maybe.bindMaybe)(Data_Array.index(play_map)(v.value0))(function (v1) {
-        return Control_Bind.bind(Data_Maybe.bindMaybe)(Data_Array.index(v1)(v.value1))(function (v2) {
+    var y_ = Data_Int.floor(v.pos.value1);
+    var x_ = Data_Int.floor(v.pos.value0);
+    return Control_Bind.bind(Data_Maybe.bindMaybe)(Data_Array.index(play_map)(x_))(function (v1) {
+        return Control_Bind.bind(Data_Maybe.bindMaybe)(Data_Array.index(v1)(y_))(function (v2) {
             return Control_Bind.discard(Control_Bind.discardUnit)(Data_Maybe.bindMaybe)(Control_MonadZero.guard(Data_Maybe.monadZeroMaybe)(v2 === 0))(function () {
-                return Control_Applicative.pure(Data_Maybe.applicativeMaybe)(new Data_Tuple.Tuple(v.value0, v.value1));
+                return Control_Applicative.pure(Data_Maybe.applicativeMaybe)(v);
             });
         });
     });
 };
 var movement = function (svalue) {
-    return function (v) {
+    return function (s) {
         if (svalue === "ArrowUp") {
-            return Data_Maybe.fromMaybe(v)(guard_against(Data_Bifunctor.rmap(Data_Tuple.bifunctorTuple)(function (v1) {
-                return v1 - 1 | 0;
-            })(v)));
+            return Data_Maybe.fromMaybe(s)(guard_against(move_up(s)));
         };
         if (svalue === "ArrowDown") {
-            return Data_Maybe.fromMaybe(v)(guard_against(Data_Bifunctor.rmap(Data_Tuple.bifunctorTuple)(function (v1) {
-                return v1 + 1 | 0;
-            })(v)));
+            return Data_Maybe.fromMaybe(s)(guard_against(move_down(s)));
         };
         if (svalue === "ArrowLeft") {
-            return Data_Maybe.fromMaybe(v)(guard_against(Data_Bifunctor.lmap(Data_Tuple.bifunctorTuple)(function (v1) {
-                return v1 - 1 | 0;
-            })(v)));
+            return rotate_ccw(s);
         };
         if (svalue === "ArrowRight") {
-            return Data_Maybe.fromMaybe(v)(guard_against(Data_Bifunctor.lmap(Data_Tuple.bifunctorTuple)(function (v1) {
-                return v1 + 1 | 0;
-            })(v)));
+            return rotate_cw(s);
         };
-        return new Data_Tuple.Tuple(v.value0, v.value1);
+        return s;
     };
 };
 var down_with_init_point = Control_Alt.alt(FRP_Event.altEvent)(Control_Applicative.pure(FRP_Event.applicativeEvent)("e"))(FRP_Event_Keyboard.down);
 var position_stream = function (i) {
     return FRP_Event_Class.fold(FRP_Event.eventIsEvent)(movement)(down_with_init_point)(i);
 };
-var block_width = 30;
-var block_height = 30;
+var block_width = 30.0;
+var block_height = 30.0;
+var draw_line = function (ctx) {
+    return function (v) {
+        return function (v1) {
+            return function __do() {
+                Graphics_Canvas.moveTo(ctx)(v.value0 * block_width)(v.value1 * block_height)();
+                Graphics_Canvas.lineTo(ctx)(v1.value0 * block_width)(v1.value1 * block_height)();
+                return Graphics_Canvas.stroke(ctx)();
+            };
+        };
+    };
+};
+var draw_player = function (ctx) {
+    return function (a) {
+        return function __do() {
+            Graphics_Canvas.setStrokeStyle(ctx)("green")();
+            Graphics_Canvas.beginPath(ctx)();
+            draw_line(ctx)(a.pos)(Data_Semiring.add(Data_Tuple.semiringTuple(Data_Semiring.semiringNumber)(Data_Semiring.semiringNumber))(a.pos)(a.dir))();
+            Graphics_Canvas.setStrokeStyle(ctx)("black")();
+            Graphics_Canvas.setFillStyle(ctx)("red")();
+            return Graphics_Canvas.fillRect(ctx)({
+                x: a.pos.value0 * block_width,
+                y: a.pos.value1 * block_height,
+                width: 3.0,
+                height: 3.0
+            })();
+        };
+    };
+};
 var play_map_ = play_map_to_nurect_array(block_width)(block_height)(play_map);
 var animation_fn = function (ctx) {
     return function (v) {
+        var y = Data_Int.floor(v.pos.value1);
+        var x = Data_Int.floor(v.pos.value0);
         return function __do() {
             Effect_Console.log("rendered")();
             render_play_map(ctx)(play_map_)();
             Graphics_Canvas.setFillStyle(ctx)("rgba(187, 143, 206, 0.5)")();
-            return Graphics_Canvas.fillRect(ctx)({
-                x: Data_Int.toNumber(v.value0 * block_width | 0),
-                y: Data_Int.toNumber(v.value1 * block_height | 0),
-                width: Data_Int.toNumber(block_width),
-                height: Data_Int.toNumber(block_height)
+            Graphics_Canvas.fillRect(ctx)({
+                x: Data_Int.toNumber(x) * block_width,
+                y: Data_Int.toNumber(y) * block_height,
+                width: block_width,
+                height: block_height
             })();
+            return draw_player(ctx)(v)();
         };
     };
 };
@@ -25161,18 +25237,18 @@ var get_crackin = function (canvas) {
         return function (h) {
             return function __do() {
                 var v = Graphics_Canvas.getContext2D(canvas)();
-                var v1 = Graphics_Canvas.setCanvasWidth(canvas)(Data_Int.toNumber(w))();
-                var v2 = Graphics_Canvas.setCanvasHeight(canvas)(Data_Int.toNumber(h))();
+                var v1 = Graphics_Canvas.setCanvasWidth(canvas)(w)();
+                var v2 = Graphics_Canvas.setCanvasHeight(canvas)(h)();
                 render_play_map(v)(play_map_)();
-                var v3 = FRP_Event.subscribe(position_stream(new Data_Tuple.Tuple(1, 1)))(animation_fn(v))();
+                var v3 = FRP_Event.subscribe(position_stream(init_state))(animation_fn(v))();
                 return Data_Unit.unit;
             };
         };
     };
 };
 var main = (function () {
-    var w = map_width * block_width | 0;
-    var h = map_height * block_height | 0;
+    var w = Data_Int.toNumber(map_width) * block_width;
+    var h = Data_Int.toNumber(map_height) * block_height;
     return function __do() {
         var v = Graphics_Canvas.getCanvasElementById("canvas")();
         if (v instanceof Data_Maybe.Nothing) {
@@ -25181,7 +25257,7 @@ var main = (function () {
         if (v instanceof Data_Maybe.Just) {
             return get_crackin(v.value0)(w)(h)();
         };
-        throw new Error("Failed pattern match at Main line 189, column 3 - line 190, column 44: " + [ v.constructor.name ]);
+        throw new Error("Failed pattern match at Main line 279, column 3 - line 280, column 44: " + [ v.constructor.name ]);
     };
 })();
 module.exports = {
@@ -25190,22 +25266,32 @@ module.exports = {
     map_height: map_height,
     block_width: block_width,
     block_height: block_height,
+    vel: vel,
+    rvel: rvel,
     string_to_color: string_to_color,
     to_nurect: to_nurect,
     play_map_: play_map_,
     play_map_to_nurect_array: play_map_to_nurect_array,
     render_nu_rect: render_nu_rect,
     render_play_map: render_play_map,
+    draw_line: draw_line,
+    draw_player: draw_player,
+    move_up: move_up,
+    move_down: move_down,
+    rotate_vector: rotate_vector,
+    rotate_cw: rotate_cw,
+    rotate_ccw: rotate_ccw,
     guard_against: guard_against,
     movement: movement,
     animation_fn: animation_fn,
     down_with_init_point: down_with_init_point,
     position_stream: position_stream,
+    init_state: init_state,
     get_crackin: get_crackin,
     main: main
 };
 
-},{"../Control.Alt/index.js":1,"../Control.Applicative/index.js":3,"../Control.Bind/index.js":9,"../Control.MonadZero/index.js":30,"../Control.Semigroupoid/index.js":32,"../Data.Array/index.js":39,"../Data.Bifunctor/index.js":47,"../Data.Eq/index.js":68,"../Data.Foldable/index.js":74,"../Data.Function/index.js":78,"../Data.Int/index.js":90,"../Data.Maybe/index.js":104,"../Data.Ring/index.js":126,"../Data.Semiring/index.js":134,"../Data.Show/index.js":137,"../Data.Traversable/index.js":151,"../Data.Tuple/index.js":153,"../Data.Unit/index.js":159,"../Effect.Console/index.js":163,"../Effect/index.js":174,"../FRP.Event.Class/index.js":175,"../FRP.Event.Keyboard/index.js":176,"../FRP.Event/index.js":177,"../Graphics.Canvas/index.js":183,"../Prelude/index.js":191}],185:[function(require,module,exports){
+},{"../Control.Alt/index.js":1,"../Control.Applicative/index.js":3,"../Control.Bind/index.js":9,"../Control.MonadZero/index.js":30,"../Control.Semigroupoid/index.js":32,"../Data.Array/index.js":39,"../Data.Bifunctor/index.js":47,"../Data.Eq/index.js":68,"../Data.Foldable/index.js":74,"../Data.Function/index.js":78,"../Data.Int/index.js":90,"../Data.Maybe/index.js":104,"../Data.Ring/index.js":126,"../Data.Semiring/index.js":134,"../Data.Show/index.js":137,"../Data.Traversable/index.js":151,"../Data.Tuple/index.js":153,"../Data.Unit/index.js":159,"../Effect.Console/index.js":163,"../Effect/index.js":174,"../FRP.Event.Class/index.js":175,"../FRP.Event.Keyboard/index.js":176,"../FRP.Event/index.js":177,"../Graphics.Canvas/index.js":183,"../Math/index.js":186,"../Prelude/index.js":191}],185:[function(require,module,exports){
 "use strict";
 
 // module Math

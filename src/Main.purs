@@ -16,7 +16,7 @@ import FRP.Event.Keyboard    (down)
 import Graphics.Canvas       (getCanvasElementById, getContext2D, setCanvasHeight, 
                               setCanvasWidth, setStrokeStyle, Context2D, Rectangle(..), 
                               setFillStyle, fillRect, fillText, strokeRect, CanvasElement,
-                              lineTo, stroke, moveTo)
+                              lineTo, stroke, moveTo, clearRect, beginPath)
 import Math                  (cos, sin)
 
 
@@ -86,6 +86,13 @@ string_to_color "3" = "green"
 string_to_color _   = "white"
 
 
+-- =====================================================================================
+--
+--                           Drawing Utils
+--
+-- ====================================================================================
+
+
 type NuRectangle = { r :: Rectangle , colour  :: String }
 
 
@@ -105,6 +112,8 @@ to_nurect i j x bw bh = { r: rectangle, colour: (show x)}
 
 play_map_ :: Array (Array NuRectangle)
 play_map_ = play_map_to_nurect_array block_width block_height play_map
+
+
 
 
 -- big fat code smell here
@@ -129,9 +138,31 @@ render_play_map :: Context2D -> Array (Array NuRectangle) -> Effect Unit
 render_play_map ctx x = traverse_ (traverse_ (render_nu_rect ctx)) x  
  
 
+draw_line :: Context2D -> Tuple Number Number -> Tuple  Number Number -> Effect Unit
+draw_line ctx (Tuple x1 y1) (Tuple x2 y2) = do
+                                             moveTo ctx (x1*block_width) (y1*block_height)
+                                             lineTo ctx (x2*block_width) (y2*block_height)
+                                             stroke ctx
+
+
+draw_player :: Context2D -> State -> Effect Unit
+draw_player ctx a = do
+                     let p@(Tuple x y) = a.pos
+                     -- render arrow
+                     setStrokeStyle ctx "green"
+                     beginPath ctx
+                     draw_line ctx p (add p a.dir)
+                     setStrokeStyle ctx "black"
+                     -- render dot
+                     setFillStyle ctx "red"
+                     fillRect ctx {x: x*block_width, 
+                                   y: y*block_height, 
+                                   width:3.0, height: 3.0 }
+
+
 -- ============================================================================
 --
---                  Animation stuff  
+--                      Player movement
 --
 -- ============================================================================
 
@@ -179,11 +210,11 @@ movement svalue  s = case svalue of "ArrowUp" -> fromMaybe s (guard_against <<< 
                                     _ -> s
 
 
-draw_line :: Context2D -> Tuple Number Number -> Tuple  Number Number -> Effect Unit
-draw_line ctx (Tuple x1 y1) (Tuple x2 y2) = do
-                                             moveTo ctx (x1*block_width) (y1*block_height)
-                                             lineTo ctx (x2*block_width) (y2*block_height)
-                                             stroke ctx
+-- ============================================================================
+--
+--                  Animation stuff  
+--
+-- ============================================================================
 
 
 animation_fn :: Context2D -> State -> Effect Unit
@@ -191,9 +222,6 @@ animation_fn ctx a@{pos: (Tuple x_ y_)} = do
                                           let x = floor x_
                                               y = floor y_
                                           log "rendered"
-                                          log <<< show $ a.pos
-                                          log <<< show $ a.dir
-                                          log ((show  x) <> "," <> (show y))
                                           render_play_map ctx play_map_
                                           -- render block
                                           setFillStyle ctx "rgba(187, 143, 206, 0.5)"
@@ -201,13 +229,7 @@ animation_fn ctx a@{pos: (Tuple x_ y_)} = do
                                                         y: (toNumber y)*block_height, 
                                                         width: block_width, 
                                                         height: block_height}
-                                          -- render arrow
-                                          setStrokeStyle ctx "green"
-                                          draw_line ctx a.pos (add a.pos a.dir)
-                                          setStrokeStyle ctx "black"
-                                          -- render dot
-                                          setFillStyle ctx "red"
-                                          fillRect ctx {x: x_*block_width, y: y_*block_height, width:3.0, height: 3.0 }
+                                          draw_player ctx a
 
 
 -- =====================================================================================
@@ -224,12 +246,19 @@ down_with_init_point = pure "e" `alt` down
 position_stream :: State ->  Event State
 position_stream i = fold movement down_with_init_point i 
 
--- ===================================================================================
+
+-- =====================================================================================
+--
+--                   Main
+--
+-- =====================================================================================
+
 
 init_state :: State
 init_state = {pos: Tuple 1.0 1.0, 
               dir: Tuple (-1.0) 0.0, 
               cam: Tuple 0.0 0.66}
+
 
 get_crackin :: CanvasElement -> Number -> Number -> Effect Unit
 get_crackin canvas w h  = do
@@ -242,9 +271,6 @@ get_crackin canvas w h  = do
     pure unit
     
     
-    
-
-
 main :: Effect Unit
 main = do
   let w = (toNumber map_width) * block_width
@@ -252,5 +278,3 @@ main = do
   canvas <- getCanvasElementById "canvas" 
   case canvas of Nothing -> log "Canvas element not found!! check ID!!"
                  Just c -> get_crackin c w h 
-
-  
