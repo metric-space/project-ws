@@ -159,6 +159,18 @@ draw_player ctx a = do
                                    y: y*block_height, 
                                    width:3.0, height: 3.0 }
 
+-- todo refactor
+draw_exploration_block :: Context2D -> (Tuple Int Int) -> Effect Unit
+draw_exploration_block ctx (Tuple x y) = do
+                                          setFillStyle ctx "cyan" 
+                                          fillRect ctx {x: (toNumber x)*block_width, 
+                                                        y: (toNumber y)*block_height, 
+                                                        width:block_width, height: block_height }
+
+
+draw_exploration_blocks :: Context2D -> Array (Tuple Int Int) -> Effect Unit
+draw_exploration_blocks ctx  = traverse_ (draw_exploration_block ctx)
+
 
 -- ============================================================================
 --
@@ -223,10 +235,11 @@ animation_fn ctx a@{pos: (Tuple x_ y_)} = do
                                               y = floor y_
 
                                               e :: Array (Tuple Int Int)
-                                              e = (nub <<< concat <<< (map (\x -> x.explored_blocks))) $ (dda 1 a)
+                                              e = (nub <<< concat <<< (map (\x -> x.explored_blocks))) $ (dda 50 a)
                                           log "rendered"
                                           log <<< show $ e
                                           render_play_map ctx play_map_
+                                          draw_exploration_blocks ctx e
                                           -- render block
                                           setFillStyle ctx "rgba(187, 143, 206, 0.5)"
                                           fillRect ctx {x: (toNumber x)*block_width, 
@@ -311,16 +324,16 @@ hit_search {continue,searched,accum,x_side} map_ d@(Tuple dx dy) s@{step_x,step_
                    accum_ = if x_bias
                               then lmap (_ + dx) accum
                               else rmap (_ + dy) accum
-                   nmap   = bimap floor floor map_
+                   nmap   = bimap floor floor map__
                    hit    = any_hit nmap
                 in if hit == true
                          then hit_search {continue: false, 
                                           searched: searched, 
                                           accum: accum_, 
-                                          x_side: x_bias } map_ d s
+                                          x_side: x_bias } map__ d s
                          else hit_search {continue: true , 
                                           searched:  [nmap] <> searched ,
-                                          accum: accum_ , x_side:x_bias} map_ d s 
+                                          accum: accum_ , x_side:x_bias} map__ d s 
                    
           else {wall_block: (bimap floor floor map_), explored_blocks: searched, x: x_side} 
              

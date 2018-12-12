@@ -25196,8 +25196,8 @@ var calculate_side_dist = function (ray_dir) {
     return function (d_) {
         return function (map_) {
             return function (pos_) {
-                var $51 = ray_dir < 0.0;
-                if ($51) {
+                var $52 = ray_dir < 0.0;
+                if ($52) {
                     return new Data_Tuple.Tuple(d_ * (1.0 - (pos_ - map_)), -1.0);
                 };
                 return new Data_Tuple.Tuple(d_ * (pos_ - map_), 1.0);
@@ -25223,6 +25223,22 @@ var side_dists = function (v) {
 };
 var block_width = 30.0;
 var block_height = 30.0;
+var draw_exploration_block = function (ctx) {
+    return function (v) {
+        return function __do() {
+            Graphics_Canvas.setFillStyle(ctx)("cyan")();
+            return Graphics_Canvas.fillRect(ctx)({
+                x: Data_Int.toNumber(v.value0) * block_width,
+                y: Data_Int.toNumber(v.value1) * block_height,
+                width: block_width,
+                height: block_height
+            })();
+        };
+    };
+};
+var draw_exploration_blocks = function (ctx) {
+    return Data_Foldable.traverse_(Effect.applicativeEffect)(Data_Foldable.foldableArray)(draw_exploration_block(ctx));
+};
 var draw_line = function (ctx) {
     return function (v) {
         return function (v1) {
@@ -25274,10 +25290,9 @@ var hit_search = function ($copy_v) {
                 var $tco_done = false;
                 var $tco_result;
                 function $tco_loop(v, map_, v1, v2) {
-                    var $89 = v["continue"] === true;
-                    if ($89) {
+                    var $94 = v["continue"] === true;
+                    if ($94) {
                         var x_bias = Data_Tuple.fst(v.accum) < Data_Tuple.snd(v.accum);
-                        var nmap = Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(Data_Int.floor)(Data_Int.floor)(map_);
                         var map__ = (function () {
                             if (x_bias) {
                                 return Data_Bifunctor.lmap(Data_Tuple.bifunctorTuple)(function (v3) {
@@ -25288,6 +25303,7 @@ var hit_search = function ($copy_v) {
                                 return v3 + v2.step_y;
                             })(map_);
                         })();
+                        var nmap = Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(Data_Int.floor)(Data_Int.floor)(map__);
                         var hit = any_hit(nmap);
                         var accum_ = (function () {
                             if (x_bias) {
@@ -25299,15 +25315,15 @@ var hit_search = function ($copy_v) {
                                 return v3 + v1.value1;
                             })(v.accum);
                         })();
-                        var $92 = hit === true;
-                        if ($92) {
+                        var $97 = hit === true;
+                        if ($97) {
                             $tco_var_v = {
                                 "continue": false,
                                 searched: v.searched,
                                 accum: accum_,
                                 x_side: x_bias
                             };
-                            $tco_var_map_ = map_;
+                            $tco_var_map_ = map__;
                             $tco_var_v1 = v1;
                             $copy_v2 = v2;
                             return;
@@ -25318,7 +25334,7 @@ var hit_search = function ($copy_v) {
                             accum: accum_,
                             x_side: x_bias
                         };
-                        $tco_var_map_ = map_;
+                        $tco_var_map_ = map__;
                         $tco_var_v1 = v1;
                         $copy_v2 = v2;
                         return;
@@ -25354,10 +25370,10 @@ var explore = function (map_) {
 var dda_mini = function (x) {
     return function (w) {
         return function (s) {
-            var map_ = Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(function ($115) {
-                return Data_Int.toNumber(Data_Int.floor($115));
-            })(function ($116) {
-                return Data_Int.toNumber(Data_Int.floor($116));
+            var map_ = Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(function ($120) {
+                return Data_Int.toNumber(Data_Int.floor($120));
+            })(function ($121) {
+                return Data_Int.toNumber(Data_Int.floor($121));
             })(s.pos);
             var g = function (x1) {
                 return $$Math.abs(1.0 / x1);
@@ -25386,11 +25402,12 @@ var animation_fn = function (ctx) {
         var x = Data_Int.floor(v.pos.value0);
         var e = Data_Array.nub(Data_Tuple.ordTuple(Data_Ord.ordInt)(Data_Ord.ordInt))(Data_Array.concat(Data_Functor.map(Data_Functor.functorArray)(function (x1) {
             return x1.explored_blocks;
-        })(dda(1)(v))));
+        })(dda(50)(v))));
         return function __do() {
             Effect_Console.log("rendered")();
             Effect_Console.log(Data_Show.show(Data_Show.showArray(Data_Tuple.showTuple(Data_Show.showInt)(Data_Show.showInt)))(e))();
             render_play_map(ctx)(play_map_)();
+            draw_exploration_blocks(ctx)(e)();
             Graphics_Canvas.setFillStyle(ctx)("rgba(187, 143, 206, 0.5)")();
             Graphics_Canvas.fillRect(ctx)({
                 x: Data_Int.toNumber(x) * block_width,
@@ -25427,7 +25444,7 @@ var main = (function () {
         if (v instanceof Data_Maybe.Just) {
             return get_crackin(v.value0)(w)(h)();
         };
-        throw new Error("Failed pattern match at Main line 378, column 3 - line 379, column 44: " + [ v.constructor.name ]);
+        throw new Error("Failed pattern match at Main line 391, column 3 - line 392, column 44: " + [ v.constructor.name ]);
     };
 })();
 module.exports = {
@@ -25446,6 +25463,8 @@ module.exports = {
     render_play_map: render_play_map,
     draw_line: draw_line,
     draw_player: draw_player,
+    draw_exploration_block: draw_exploration_block,
+    draw_exploration_blocks: draw_exploration_blocks,
     move_up: move_up,
     move_down: move_down,
     rotate_vector: rotate_vector,
