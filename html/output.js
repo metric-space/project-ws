@@ -25011,11 +25011,15 @@ var Control_Semigroupoid = require("../Control.Semigroupoid/index.js");
 var Data_Array = require("../Data.Array/index.js");
 var Data_Bifunctor = require("../Data.Bifunctor/index.js");
 var Data_Eq = require("../Data.Eq/index.js");
+var Data_EuclideanRing = require("../Data.EuclideanRing/index.js");
 var Data_Foldable = require("../Data.Foldable/index.js");
 var Data_Function = require("../Data.Function/index.js");
+var Data_Functor = require("../Data.Functor/index.js");
 var Data_Int = require("../Data.Int/index.js");
 var Data_Maybe = require("../Data.Maybe/index.js");
+var Data_Ord = require("../Data.Ord/index.js");
 var Data_Ring = require("../Data.Ring/index.js");
+var Data_Semigroup = require("../Data.Semigroup/index.js");
 var Data_Semiring = require("../Data.Semiring/index.js");
 var Data_Show = require("../Data.Show/index.js");
 var Data_Traversable = require("../Data.Traversable/index.js");
@@ -25183,6 +25187,40 @@ var down_with_init_point = Control_Alt.alt(FRP_Event.altEvent)(Control_Applicati
 var position_stream = function (i) {
     return FRP_Event_Class.fold(FRP_Event.eventIsEvent)(movement)(down_with_init_point)(i);
 };
+var camera_position = function (x) {
+    return function (w) {
+        return (2.0 * x) / w - 1.0;
+    };
+};
+var calculate_side_dist = function (ray_dir) {
+    return function (d_) {
+        return function (map_) {
+            return function (pos_) {
+                var $51 = ray_dir < 0.0;
+                if ($51) {
+                    return new Data_Tuple.Tuple(d_ * (1.0 - (pos_ - map_)), -1.0);
+                };
+                return new Data_Tuple.Tuple(d_ * (pos_ - map_), 1.0);
+            };
+        };
+    };
+};
+var side_dists = function (v) {
+    return function (v1) {
+        return function (v2) {
+            return function (v3) {
+                var v4 = calculate_side_dist(v.value0)(v1.value0)(v2.value0)(v3.value0);
+                var v5 = calculate_side_dist(v.value1)(v1.value1)(v2.value1)(v3.value1);
+                return {
+                    step_x: v4.value1,
+                    step_y: v5.value1,
+                    sdist_x: v4.value0,
+                    sdist_y: v5.value0
+                };
+            };
+        };
+    };
+};
 var block_width = 30.0;
 var block_height = 30.0;
 var draw_line = function (ctx) {
@@ -25214,12 +25252,144 @@ var draw_player = function (ctx) {
     };
 };
 var play_map_ = play_map_to_nurect_array(block_width)(block_height)(play_map);
+var any_hit = function (v) {
+    var v1 = Control_Bind.bind(Data_Maybe.bindMaybe)(Data_Array.index(play_map)(v.value0))(function (v2) {
+        return Data_Array.index(v2)(v.value1);
+    });
+    if (v1 instanceof Data_Maybe.Nothing) {
+        return true;
+    };
+    if (v1 instanceof Data_Maybe.Just && v1.value0 === 0) {
+        return false;
+    };
+    return true;
+};
+var hit_search = function ($copy_v) {
+    return function ($copy_map_) {
+        return function ($copy_v1) {
+            return function ($copy_v2) {
+                var $tco_var_v = $copy_v;
+                var $tco_var_map_ = $copy_map_;
+                var $tco_var_v1 = $copy_v1;
+                var $tco_done = false;
+                var $tco_result;
+                function $tco_loop(v, map_, v1, v2) {
+                    var $89 = v["continue"] === true;
+                    if ($89) {
+                        var x_bias = Data_Tuple.fst(v.accum) < Data_Tuple.snd(v.accum);
+                        var nmap = Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(Data_Int.floor)(Data_Int.floor)(map_);
+                        var map__ = (function () {
+                            if (x_bias) {
+                                return Data_Bifunctor.lmap(Data_Tuple.bifunctorTuple)(function (v3) {
+                                    return v3 + v2.step_x;
+                                })(map_);
+                            };
+                            return Data_Bifunctor.rmap(Data_Tuple.bifunctorTuple)(function (v3) {
+                                return v3 + v2.step_y;
+                            })(map_);
+                        })();
+                        var hit = any_hit(nmap);
+                        var accum_ = (function () {
+                            if (x_bias) {
+                                return Data_Bifunctor.lmap(Data_Tuple.bifunctorTuple)(function (v3) {
+                                    return v3 + v1.value0;
+                                })(v.accum);
+                            };
+                            return Data_Bifunctor.rmap(Data_Tuple.bifunctorTuple)(function (v3) {
+                                return v3 + v1.value1;
+                            })(v.accum);
+                        })();
+                        var $92 = hit === true;
+                        if ($92) {
+                            $tco_var_v = {
+                                "continue": false,
+                                searched: v.searched,
+                                accum: accum_,
+                                x_side: x_bias
+                            };
+                            $tco_var_map_ = map_;
+                            $tco_var_v1 = v1;
+                            $copy_v2 = v2;
+                            return;
+                        };
+                        $tco_var_v = {
+                            "continue": true,
+                            searched: Data_Semigroup.append(Data_Semigroup.semigroupArray)([ nmap ])(v.searched),
+                            accum: accum_,
+                            x_side: x_bias
+                        };
+                        $tco_var_map_ = map_;
+                        $tco_var_v1 = v1;
+                        $copy_v2 = v2;
+                        return;
+                    };
+                    $tco_done = true;
+                    return {
+                        wall_block: Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(Data_Int.floor)(Data_Int.floor)(map_),
+                        explored_blocks: v.searched,
+                        x: v.x_side
+                    };
+                };
+                while (!$tco_done) {
+                    $tco_result = $tco_loop($tco_var_v, $tco_var_map_, $tco_var_v1, $copy_v2);
+                };
+                return $tco_result;
+            };
+        };
+    };
+};
+var explore = function (map_) {
+    return function (deltas) {
+        return function (v) {
+            var start = {
+                "continue": true,
+                searched: [  ],
+                accum: new Data_Tuple.Tuple(v.sdist_x, v.sdist_y),
+                x_side: false
+            };
+            return hit_search(start)(map_)(deltas)(v);
+        };
+    };
+};
+var dda_mini = function (x) {
+    return function (w) {
+        return function (s) {
+            var map_ = Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(function ($115) {
+                return Data_Int.toNumber(Data_Int.floor($115));
+            })(function ($116) {
+                return Data_Int.toNumber(Data_Int.floor($116));
+            })(s.pos);
+            var g = function (x1) {
+                return $$Math.abs(1.0 / x1);
+            };
+            var camera_x = camera_position(x)(w);
+            var f = function (v) {
+                return v * camera_x;
+            };
+            var ray_dir = Data_Semiring.add(Data_Tuple.semiringTuple(Data_Semiring.semiringNumber)(Data_Semiring.semiringNumber))(s.dir)(Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(f)(f)(s.cam));
+            var deltas = Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(g)(g)(ray_dir);
+            var step = side_dists(ray_dir)(deltas)(map_)(s.pos);
+            return explore(map_)(deltas)(step);
+        };
+    };
+};
+var dda = function (w) {
+    return function (state) {
+        return Data_Functor.map(Data_Functor.functorArray)(function (x) {
+            return dda_mini(Data_Int.toNumber(x))(Data_Int.toNumber(w))(state);
+        })(Data_Array.range(0)(w - 1 | 0));
+    };
+};
 var animation_fn = function (ctx) {
     return function (v) {
         var y = Data_Int.floor(v.pos.value1);
         var x = Data_Int.floor(v.pos.value0);
+        var e = Data_Array.nub(Data_Tuple.ordTuple(Data_Ord.ordInt)(Data_Ord.ordInt))(Data_Array.concat(Data_Functor.map(Data_Functor.functorArray)(function (x1) {
+            return x1.explored_blocks;
+        })(dda(1)(v))));
         return function __do() {
             Effect_Console.log("rendered")();
+            Effect_Console.log(Data_Show.show(Data_Show.showArray(Data_Tuple.showTuple(Data_Show.showInt)(Data_Show.showInt)))(e))();
             render_play_map(ctx)(play_map_)();
             Graphics_Canvas.setFillStyle(ctx)("rgba(187, 143, 206, 0.5)")();
             Graphics_Canvas.fillRect(ctx)({
@@ -25257,7 +25427,7 @@ var main = (function () {
         if (v instanceof Data_Maybe.Just) {
             return get_crackin(v.value0)(w)(h)();
         };
-        throw new Error("Failed pattern match at Main line 279, column 3 - line 280, column 44: " + [ v.constructor.name ]);
+        throw new Error("Failed pattern match at Main line 378, column 3 - line 379, column 44: " + [ v.constructor.name ]);
     };
 })();
 module.exports = {
@@ -25286,12 +25456,20 @@ module.exports = {
     animation_fn: animation_fn,
     down_with_init_point: down_with_init_point,
     position_stream: position_stream,
+    camera_position: camera_position,
+    calculate_side_dist: calculate_side_dist,
+    side_dists: side_dists,
+    any_hit: any_hit,
+    hit_search: hit_search,
+    explore: explore,
+    dda_mini: dda_mini,
+    dda: dda,
     init_state: init_state,
     get_crackin: get_crackin,
     main: main
 };
 
-},{"../Control.Alt/index.js":1,"../Control.Applicative/index.js":3,"../Control.Bind/index.js":9,"../Control.MonadZero/index.js":30,"../Control.Semigroupoid/index.js":32,"../Data.Array/index.js":39,"../Data.Bifunctor/index.js":47,"../Data.Eq/index.js":68,"../Data.Foldable/index.js":74,"../Data.Function/index.js":78,"../Data.Int/index.js":90,"../Data.Maybe/index.js":104,"../Data.Ring/index.js":126,"../Data.Semiring/index.js":134,"../Data.Show/index.js":137,"../Data.Traversable/index.js":151,"../Data.Tuple/index.js":153,"../Data.Unit/index.js":159,"../Effect.Console/index.js":163,"../Effect/index.js":174,"../FRP.Event.Class/index.js":175,"../FRP.Event.Keyboard/index.js":176,"../FRP.Event/index.js":177,"../Graphics.Canvas/index.js":183,"../Math/index.js":186,"../Prelude/index.js":191}],185:[function(require,module,exports){
+},{"../Control.Alt/index.js":1,"../Control.Applicative/index.js":3,"../Control.Bind/index.js":9,"../Control.MonadZero/index.js":30,"../Control.Semigroupoid/index.js":32,"../Data.Array/index.js":39,"../Data.Bifunctor/index.js":47,"../Data.Eq/index.js":68,"../Data.EuclideanRing/index.js":70,"../Data.Foldable/index.js":74,"../Data.Function/index.js":78,"../Data.Functor/index.js":81,"../Data.Int/index.js":90,"../Data.Maybe/index.js":104,"../Data.Ord/index.js":123,"../Data.Ring/index.js":126,"../Data.Semigroup/index.js":132,"../Data.Semiring/index.js":134,"../Data.Show/index.js":137,"../Data.Traversable/index.js":151,"../Data.Tuple/index.js":153,"../Data.Unit/index.js":159,"../Effect.Console/index.js":163,"../Effect/index.js":174,"../FRP.Event.Class/index.js":175,"../FRP.Event.Keyboard/index.js":176,"../FRP.Event/index.js":177,"../Graphics.Canvas/index.js":183,"../Math/index.js":186,"../Prelude/index.js":191}],185:[function(require,module,exports){
 "use strict";
 
 // module Math

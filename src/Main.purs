@@ -3,12 +3,12 @@ module Main where
 import Prelude
 import Control.Alt           (alt)
 import Control.MonadZero     (guard)
-import Data.Array            ((!!), length, mapWithIndex)
+import Data.Array            ((!!), length, mapWithIndex, range, concat, nub)
 import Data.Bifunctor        (bimap, lmap, rmap)
 import Data.Int              (toNumber, floor)
 import Data.Maybe            (fromMaybe, maybe, Maybe(..))
 import Data.Traversable      (traverse_)
-import Data.Tuple            (Tuple(..))
+import Data.Tuple            (Tuple(..), fst, snd)
 import Effect                (Effect)
 import Effect.Console        (log)
 import FRP.Event             (subscribe, fold, Event)
@@ -17,7 +17,7 @@ import Graphics.Canvas       (getCanvasElementById, getContext2D, setCanvasHeigh
                               setCanvasWidth, setStrokeStyle, Context2D, Rectangle(..), 
                               setFillStyle, fillRect, fillText, strokeRect, CanvasElement,
                               lineTo, stroke, moveTo, clearRect, beginPath)
-import Math                  (cos, sin)
+import Math                  (cos, sin, abs)
 
 
 play_map :: Array (Array Int)
@@ -221,7 +221,11 @@ animation_fn :: Context2D -> State -> Effect Unit
 animation_fn ctx a@{pos: (Tuple x_ y_)} = do
                                           let x = floor x_
                                               y = floor y_
+
+                                              e :: Array (Tuple Int Int)
+                                              e = (nub <<< concat <<< (map (\x -> x.explored_blocks))) $ (dda 1 a)
                                           log "rendered"
+                                          log <<< show $ e
                                           render_play_map ctx play_map_
                                           -- render block
                                           setFillStyle ctx "rgba(187, 143, 206, 0.5)"
@@ -245,6 +249,101 @@ down_with_init_point = pure "e" `alt` down
 
 position_stream :: State ->  Event State
 position_stream i = fold movement down_with_init_point i 
+
+
+-- =====================================================================================
+--
+--                   DDA algorithm
+--
+-- =====================================================================================
+
+
+type DDAR = {wall_block      :: Tuple Int Int, 
+             explored_blocks :: Array (Tuple Int Int),
+             x               :: Boolean}
+
+
+type RSEARCH = { continue :: Boolean ,
+                 searched :: Array (Tuple Int Int),
+                 accum    :: (Tuple Number Number), 
+                 x_side   :: Boolean}
+
+
+type STEP = {step_x  :: Number,
+             step_y  :: Number,
+             sdist_x :: Number,
+             sdist_y :: Number}
+
+
+camera_position :: Number -> Number -> Number
+camera_position x w = (2.0*x/w) - 1.0
+
+
+calculate_side_dist :: Number -> Number -> Number -> Number -> Tuple Number Number
+calculate_side_dist ray_dir d_  map_ pos_ = if ray_dir < 0.0
+                                                then (Tuple (d_*(1.0 - (pos_ - map_))) (-1.0))
+                                                else (Tuple (d_*(pos_ - map_)) 1.0)
+
+
+side_dists :: (Tuple Number Number) -> (Tuple Number Number) -> (Tuple Number Number) -> (Tuple Number Number) -> STEP
+side_dists (Tuple ray_dir_x ray_dir_y) (Tuple dx dy) (Tuple map_x map_y) (Tuple pos_x pos_y) 
+     = let (Tuple s_dx step_x) = calculate_side_dist ray_dir_x dx map_x pos_x 
+           (Tuple s_dy step_y) = calculate_side_dist ray_dir_y dy map_y pos_y
+       in {step_x:  step_x , 
+           step_y:  step_y, 
+           sdist_x: s_dx,
+           sdist_y: s_dy}
+
+
+any_hit :: (Tuple Int Int) -> Boolean
+any_hit (Tuple x y) = case ((play_map !! x) >>= (_ !! y)) of Nothing  -> true
+                                                             Just 0 -> false
+                                                             _ -> true
+
+
+hit_search :: RSEARCH -> (Tuple Number Number) -> (Tuple Number Number) -> STEP -> DDAR
+hit_search {continue,searched,accum,x_side} map_ d@(Tuple dx dy) s@{step_x,step_y} = 
+      if continue == true
+          then let x_bias = (fst accum) < (snd accum)
+                   map__  = if x_bias
+                              then lmap (_ + step_x) map_
+                              else rmap (_ + step_y) map_
+                   accum_ = if x_bias
+                              then lmap (_ + dx) accum
+                              else rmap (_ + dy) accum
+                   nmap   = bimap floor floor map_
+                   hit    = any_hit nmap
+                in if hit == true
+                         then hit_search {continue: false, 
+                                          searched: searched, 
+                                          accum: accum_, 
+                                          x_side: x_bias } map_ d s
+                         else hit_search {continue: true , 
+                                          searched:  [nmap] <> searched ,
+                                          accum: accum_ , x_side:x_bias} map_ d s 
+                   
+          else {wall_block: (bimap floor floor map_), explored_blocks: searched, x: x_side} 
+             
+            
+explore :: (Tuple Number Number) -> (Tuple Number Number) -> STEP -> DDAR
+explore map_ deltas s@{sdist_x,sdist_y} = let start :: RSEARCH
+                                              start = {continue: true, searched: [], accum: (Tuple sdist_x sdist_y), x_side: false}
+                                          in  hit_search start map_ deltas s
+
+
+dda_mini :: Number -> Number -> State ->  DDAR
+dda_mini x w s = let camera_x                    = camera_position x w
+                     f                           = (_ * camera_x)
+                     g                           = \x -> abs (1.0 / x)
+                     ray_dir                     = add s.dir (bimap f f s.cam)
+                     map_                        = bimap (toNumber <<< floor) (toNumber <<< floor) s.pos
+                     deltas                      = bimap g g ray_dir
+                     step                        = side_dists ray_dir deltas map_ s.pos
+                 in explore map_ deltas step
+
+              
+dda :: Int -> State -> Array DDAR
+dda w state = map (\x -> dda_mini (toNumber x) (toNumber w) state)  (range 0 (w - 1))           
 
 
 -- =====================================================================================
