@@ -25162,7 +25162,7 @@ var move_down = function (s) {
 };
 var map_width = Data_Array.length(play_map);
 var map_height = Data_Array.length(Data_Maybe.fromMaybe([  ])(Data_Array.index(play_map)(0)));
-var light_color = Data_Map_Internal.fromFoldable(Data_Ord.ordInt)(Data_Foldable.foldableArray)([ new Data_Tuple.Tuple(1, "#59DEEE"), new Data_Tuple.Tuple(2, "#EED359"), new Data_Tuple.Tuple(3, "#C5EE59"), new Data_Tuple.Tuple(4, "#EE9259") ]);
+var light_color = Data_Map_Internal.fromFoldable(Data_Ord.ordInt)(Data_Foldable.foldableArray)([ new Data_Tuple.Tuple(1, "blue"), new Data_Tuple.Tuple(2, "#FFFF66"), new Data_Tuple.Tuple(3, "#228B22"), new Data_Tuple.Tuple(4, "#B22222") ]);
 var init_state = {
     pos: new Data_Tuple.Tuple(1.0, 1.0),
     dir: new Data_Tuple.Tuple(-1.0, 0.0),
@@ -25200,7 +25200,7 @@ var down_with_init_point = Control_Alt.alt(FRP_Event.altEvent)(Control_Applicati
 var position_stream = function (i) {
     return FRP_Event_Class.fold(FRP_Event.eventIsEvent)(movement)(down_with_init_point)(i);
 };
-var dark_color = Data_Map_Internal.fromFoldable(Data_Ord.ordInt)(Data_Foldable.foldableArray)([ new Data_Tuple.Tuple(1, "blue"), new Data_Tuple.Tuple(2, "yellow"), new Data_Tuple.Tuple(3, "green"), new Data_Tuple.Tuple(4, "red") ]);
+var dark_color = Data_Map_Internal.fromFoldable(Data_Ord.ordInt)(Data_Foldable.foldableArray)([ new Data_Tuple.Tuple(1, "#00008B"), new Data_Tuple.Tuple(2, "yellow"), new Data_Tuple.Tuple(3, "green"), new Data_Tuple.Tuple(4, "red") ]);
 var camera_position = function (x) {
     return function (w) {
         return (2.0 * x) / w - 1.0;
@@ -25238,11 +25238,11 @@ var side_dists = function (v) {
 var calculate_perp_distance = function (v) {
     return function (pos) {
         var a = Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(Data_Int.toNumber)(Data_Int.toNumber)(v.wall_block);
-        var v1 = Data_Semiring.add(Data_Tuple.semiringTuple(Data_Semiring.semiringNumber)(Data_Semiring.semiringNumber))(Data_Ring.sub(Data_Tuple.ringTuple(Data_Ring.ringNumber)(Data_Ring.ringNumber))(a)(pos))(new Data_Tuple.Tuple((1.0 - v.step_x) / 2.0, (1.0 - v.step_y) / 2.0));
+        var v1 = Data_Semiring.add(Data_Tuple.semiringTuple(Data_Semiring.semiringNumber)(Data_Semiring.semiringNumber))(Data_Ring.sub(Data_Tuple.ringTuple(Data_Ring.ringNumber)(Data_Ring.ringNumber))(a)(pos))(new Data_Tuple.Tuple((1.0 + v.step_x) / 2.0, (1.0 + v.step_y) / 2.0));
         if (v.x) {
-            return (screen_height * v1.value0) / v.ray_dir.value0;
+            return (screen_height * v.ray_dir.value0) / v1.value0;
         };
-        return (screen_height * v1.value1) / v.ray_dir.value1;
+        return (screen_height * v.ray_dir.value1) / v1.value1;
     };
 };
 var calculate_height_coords = function (p) {
@@ -25263,7 +25263,7 @@ var calculate_height_coords = function (p) {
         };
         return h2;
     })();
-    return new Data_Tuple.Tuple(h1_, h2_);
+    return new Data_Tuple.Tuple(h1_, h2);
 };
 var dDAR_to_nurect = function (pos) {
     return function (ddar) {
@@ -25499,8 +25499,6 @@ var animation_fn = function (ctx) {
                 return x1.explored_blocks;
             })(o)));
             return function __do() {
-                Effect_Console.log("rendered")();
-                Effect_Console.log(Data_Show.show(Data_Show.showArray(Data_Tuple.showTuple(Data_Show.showInt)(Data_Show.showInt)))(e))();
                 render_play_map(ctx)(play_map_)();
                 draw_exploration_blocks(ctx)(e)();
                 Graphics_Canvas.setFillStyle(ctx)("rgba(187, 143, 206, 0.5)")();
@@ -25519,9 +25517,6 @@ var animation_fn = function (ctx) {
                     height: screen_height
                 })();
                 var o_ = Data_Functor.map(Data_Functor.functorArray)(dDAR_to_nurect(v.pos))(o);
-                Effect_Console.log(Data_Show.show(Data_Show.showArray(Data_Show.showString))(Data_Functor.map(Data_Functor.functorArray)(function (x1) {
-                    return x1.colour;
-                })(o_)))();
                 return Data_Foldable.traverse_(Effect.applicativeEffect)(Data_Foldable.foldableArray)(vanilla_render_nu_rect(ctx2))(o_)();
             };
         };
@@ -25561,9 +25556,9 @@ var main = (function () {
             if (v1 instanceof Data_Maybe.Just) {
                 return get_crackin(v.value0)(v1.value0)(w)(h)();
             };
-            throw new Error("Failed pattern match at Main line 475, column 28 - line 476, column 72: " + [ v1.constructor.name ]);
+            throw new Error("Failed pattern match at Main line 472, column 28 - line 473, column 72: " + [ v1.constructor.name ]);
         };
-        throw new Error("Failed pattern match at Main line 474, column 3 - line 476, column 73: " + [ v.constructor.name ]);
+        throw new Error("Failed pattern match at Main line 471, column 3 - line 473, column 73: " + [ v.constructor.name ]);
     };
 })();
 module.exports = {

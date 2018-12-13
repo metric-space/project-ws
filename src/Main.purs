@@ -238,20 +238,20 @@ movement svalue  s = case svalue of "ArrowUp" -> fromMaybe s (guard_against <<< 
 
 
 light_color :: Map Int String
-light_color = fromFoldable [Tuple 1 "#59DEEE", Tuple 2 "#EED359", Tuple 3 "#C5EE59", Tuple 4 "#EE9259"]
+light_color = fromFoldable [Tuple 1 "blue", Tuple 2 "#FFFF66", Tuple 3 "#228B22", Tuple 4 "#B22222"]
 
 
 dark_color :: Map Int String
-dark_color = fromFoldable [Tuple 1 "blue", Tuple 2 "yellow", Tuple 3 "green", Tuple 4 "red"]
+dark_color = fromFoldable [Tuple 1 "#00008B", Tuple 2 "yellow", Tuple 3 "green", Tuple 4 "red"]
 
 
 calculate_perp_distance :: DDAR -> (Tuple Number Number) -> Number
 calculate_perp_distance {wall_block ,x, ray_dir, step_x, step_y} pos = let a = bimap toNumber toNumber wall_block 
                                                                            (Tuple rx ry) = ray_dir
-                                                                           (Tuple x_ y_) = (add (sub a pos) (Tuple ((1.0-step_x)/2.0) ((1.0 - step_y)/2.0)))
+                                                                           (Tuple x_ y_) = add (sub a pos) (Tuple ((1.0+step_x)/2.0) ((1.0 + step_y)/2.0))
                                                                        in if x
-                                                                            then screen_height * x_ / rx
-                                                                            else screen_height * y_ / ry
+                                                                            then screen_height * rx / x_
+                                                                            else screen_height * ry / y_
 
 calculate_height_coords :: Number -> (Tuple Number Number)
 calculate_height_coords p = let h = screen_height/2.0 
@@ -263,7 +263,7 @@ calculate_height_coords p = let h = screen_height/2.0
                                 h2_ = if h2 >= screen_height
                                         then screen_height - 1.0
                                         else h2
-                            in (Tuple h1_ h2_)
+                            in (Tuple h1_ h2)
 
 
 dDAR_to_nurect :: (Tuple Number Number) -> DDAR -> NuRectangle
@@ -299,8 +299,6 @@ animation_fn ctx ctx2 a@{pos: (Tuple x_ y_)} = do
 
                                                     e :: Array (Tuple Int Int)
                                                     e = (nub <<< concat <<< (map (\x -> x.explored_blocks))) $ o
-                                                log "rendered"
-                                                log <<< show $ e
                                                 render_play_map ctx play_map_
                                                 draw_exploration_blocks ctx e
                                                 -- render block
@@ -318,7 +316,6 @@ animation_fn ctx ctx2 a@{pos: (Tuple x_ y_)} = do
                                                                height: screen_height}
 
                                                 let o_ = map (dDAR_to_nurect a.pos) o
-                                                log <<< show $ (map (\x -> x.colour) o_)
                                                 traverse_ (vanilla_render_nu_rect ctx2) o_
                                                 
 
