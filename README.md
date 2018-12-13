@@ -13,7 +13,7 @@ And the 2d map overview idea was inspired by [https://dev.opera.com/articles/3d-
 
 ## Screenshot
 
-![alt text](https://raw.githubusercontent.com/metric-space/ps_raycaster/master/screen_shot.png)
+![alt text](https://raw.githubusercontent.com/metric-space/purescript_raycaster/master/screen_shot.png)
 
 
 
