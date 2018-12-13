@@ -25016,6 +25016,8 @@ var Data_Foldable = require("../Data.Foldable/index.js");
 var Data_Function = require("../Data.Function/index.js");
 var Data_Functor = require("../Data.Functor/index.js");
 var Data_Int = require("../Data.Int/index.js");
+var Data_Map = require("../Data.Map/index.js");
+var Data_Map_Internal = require("../Data.Map.Internal/index.js");
 var Data_Maybe = require("../Data.Maybe/index.js");
 var Data_Ord = require("../Data.Ord/index.js");
 var Data_Ring = require("../Data.Ring/index.js");
@@ -25034,6 +25036,14 @@ var Graphics_Canvas = require("../Graphics.Canvas/index.js");
 var $$Math = require("../Math/index.js");
 var Prelude = require("../Prelude/index.js");
 var vel = 0.15;
+var vanilla_render_nu_rect = function (ctx) {
+    return function (r) {
+        return function __do() {
+            Graphics_Canvas.setFillStyle(ctx)(r.colour)();
+            return Graphics_Canvas.fillRect(ctx)(r.r)();
+        };
+    };
+};
 var to_nurect = function (i) {
     return function (j) {
         return function (x) {
@@ -25071,6 +25081,8 @@ var string_to_color = function (v) {
     };
     return "white";
 };
+var screen_resolution = 50;
+var screen_height = 400.0;
 var rvel = 9.0e-2;
 var rotate_vector = function (angle) {
     return function (v) {
@@ -25150,6 +25162,7 @@ var move_down = function (s) {
 };
 var map_width = Data_Array.length(play_map);
 var map_height = Data_Array.length(Data_Maybe.fromMaybe([  ])(Data_Array.index(play_map)(0)));
+var light_color = Data_Map_Internal.fromFoldable(Data_Ord.ordInt)(Data_Foldable.foldableArray)([ new Data_Tuple.Tuple(1, "#59DEEE"), new Data_Tuple.Tuple(2, "#EED359"), new Data_Tuple.Tuple(3, "#C5EE59"), new Data_Tuple.Tuple(4, "#EE9259") ]);
 var init_state = {
     pos: new Data_Tuple.Tuple(1.0, 1.0),
     dir: new Data_Tuple.Tuple(-1.0, 0.0),
@@ -25187,6 +25200,7 @@ var down_with_init_point = Control_Alt.alt(FRP_Event.altEvent)(Control_Applicati
 var position_stream = function (i) {
     return FRP_Event_Class.fold(FRP_Event.eventIsEvent)(movement)(down_with_init_point)(i);
 };
+var dark_color = Data_Map_Internal.fromFoldable(Data_Ord.ordInt)(Data_Foldable.foldableArray)([ new Data_Tuple.Tuple(1, "blue"), new Data_Tuple.Tuple(2, "yellow"), new Data_Tuple.Tuple(3, "green"), new Data_Tuple.Tuple(4, "red") ]);
 var camera_position = function (x) {
     return function (w) {
         return (2.0 * x) / w - 1.0;
@@ -25196,8 +25210,8 @@ var calculate_side_dist = function (ray_dir) {
     return function (d_) {
         return function (map_) {
             return function (pos_) {
-                var $52 = ray_dir < 0.0;
-                if ($52) {
+                var $62 = ray_dir < 0.0;
+                if ($62) {
                     return new Data_Tuple.Tuple(d_ * (1.0 - (pos_ - map_)), -1.0);
                 };
                 return new Data_Tuple.Tuple(d_ * (pos_ - map_), 1.0);
@@ -25218,6 +25232,72 @@ var side_dists = function (v) {
                     sdist_y: v5.value0
                 };
             };
+        };
+    };
+};
+var calculate_perp_distance = function (v) {
+    return function (pos) {
+        var a = Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(Data_Int.toNumber)(Data_Int.toNumber)(v.wall_block);
+        var v1 = Data_Semiring.add(Data_Tuple.semiringTuple(Data_Semiring.semiringNumber)(Data_Semiring.semiringNumber))(Data_Ring.sub(Data_Tuple.ringTuple(Data_Ring.ringNumber)(Data_Ring.ringNumber))(a)(pos))(new Data_Tuple.Tuple((1.0 - v.step_x) / 2.0, (1.0 - v.step_y) / 2.0));
+        if (v.x) {
+            return (screen_height * v1.value0) / v.ray_dir.value0;
+        };
+        return (screen_height * v1.value1) / v.ray_dir.value1;
+    };
+};
+var calculate_height_coords = function (p) {
+    var h = screen_height / 2.0;
+    var h1 = -p / 2.0 + h;
+    var h1_ = (function () {
+        var $95 = h1 < 0.0;
+        if ($95) {
+            return 0.0;
+        };
+        return h1;
+    })();
+    var h2 = p / 2.0 + h;
+    var h2_ = (function () {
+        var $96 = h2 >= screen_height;
+        if ($96) {
+            return screen_height - 1.0;
+        };
+        return h2;
+    })();
+    return new Data_Tuple.Tuple(h1_, h2_);
+};
+var dDAR_to_nurect = function (pos) {
+    return function (ddar) {
+        var p = calculate_perp_distance(ddar)(pos);
+        var v = calculate_height_coords(p);
+        var i = Control_Bind.bind(Data_Maybe.bindMaybe)(Data_Array.index(play_map)(ddar.wall_block.value0))(function (v1) {
+            return Data_Array.index(v1)(ddar.wall_block.value1);
+        });
+        var color = (function () {
+            if (ddar.x) {
+                return Data_Maybe.fromMaybe("white")(Control_Bind.bind(Data_Maybe.bindMaybe)(i)(function (t) {
+                    return Data_Map_Internal.lookup(Data_Ord.ordInt)(t)(dark_color);
+                }));
+            };
+            return Data_Maybe.fromMaybe("white")(Control_Bind.bind(Data_Maybe.bindMaybe)(i)(function (t) {
+                return Data_Map_Internal.lookup(Data_Ord.ordInt)(t)(light_color);
+            }));
+        })();
+        return {
+            colour: color,
+            r: {
+                x: ddar.x_p * 5.0,
+                y: v.value0,
+                width: 5.0,
+                height: v.value1 - v.value0
+            }
+        };
+    };
+};
+var screen_animation_fn = function (ctx) {
+    return function (v) {
+        return function (d) {
+            var kk = Data_Functor.map(Data_Functor.functorArray)(dDAR_to_nurect(v.pos))(d);
+            return Data_Foldable.traverse_(Effect.applicativeEffect)(Data_Foldable.foldableArray)(vanilla_render_nu_rect(ctx))(kk);
         };
     };
 };
@@ -25290,8 +25370,8 @@ var hit_search = function ($copy_v) {
                 var $tco_done = false;
                 var $tco_result;
                 function $tco_loop(v, map_, v1, v2) {
-                    var $94 = v["continue"] === true;
-                    if ($94) {
+                    var $131 = v["continue"] === true;
+                    if ($131) {
                         var x_bias = Data_Tuple.fst(v.accum) < Data_Tuple.snd(v.accum);
                         var map__ = (function () {
                             if (x_bias) {
@@ -25315,8 +25395,8 @@ var hit_search = function ($copy_v) {
                                 return v3 + v1.value1;
                             })(v.accum);
                         })();
-                        var $97 = hit === true;
-                        if ($97) {
+                        var $134 = hit === true;
+                        if ($134) {
                             $tco_var_v = {
                                 "continue": false,
                                 searched: v.searched,
@@ -25343,7 +25423,11 @@ var hit_search = function ($copy_v) {
                     return {
                         wall_block: Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(Data_Int.floor)(Data_Int.floor)(map_),
                         explored_blocks: v.searched,
-                        x: v.x_side
+                        x: v.x_side,
+                        ray_dir: new Data_Tuple.Tuple(0.0, 0.0),
+                        x_p: 0.0,
+                        step_x: v2.step_x,
+                        step_y: v2.step_y
                     };
                 };
                 while (!$tco_done) {
@@ -25370,10 +25454,10 @@ var explore = function (map_) {
 var dda_mini = function (x) {
     return function (w) {
         return function (s) {
-            var map_ = Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(function ($120) {
-                return Data_Int.toNumber(Data_Int.floor($120));
-            })(function ($121) {
-                return Data_Int.toNumber(Data_Int.floor($121));
+            var map_ = Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(function ($162) {
+                return Data_Int.toNumber(Data_Int.floor($162));
+            })(function ($163) {
+                return Data_Int.toNumber(Data_Int.floor($163));
             })(s.pos);
             var g = function (x1) {
                 return $$Math.abs(1.0 / x1);
@@ -25385,7 +25469,16 @@ var dda_mini = function (x) {
             var ray_dir = Data_Semiring.add(Data_Tuple.semiringTuple(Data_Semiring.semiringNumber)(Data_Semiring.semiringNumber))(s.dir)(Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(f)(f)(s.cam));
             var deltas = Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)(g)(g)(ray_dir);
             var step = side_dists(ray_dir)(deltas)(map_)(s.pos);
-            return explore(map_)(deltas)(step);
+            var v = explore(map_)(deltas)(step);
+            return {
+                wall_block: v.wall_block,
+                explored_blocks: v.explored_blocks,
+                x: v.x,
+                x_p: x,
+                ray_dir: ray_dir,
+                step_x: v.step_x,
+                step_y: v.step_y
+            };
         };
     };
 };
@@ -25397,38 +25490,57 @@ var dda = function (w) {
     };
 };
 var animation_fn = function (ctx) {
-    return function (v) {
-        var y = Data_Int.floor(v.pos.value1);
-        var x = Data_Int.floor(v.pos.value0);
-        var e = Data_Array.nub(Data_Tuple.ordTuple(Data_Ord.ordInt)(Data_Ord.ordInt))(Data_Array.concat(Data_Functor.map(Data_Functor.functorArray)(function (x1) {
-            return x1.explored_blocks;
-        })(dda(50)(v))));
-        return function __do() {
-            Effect_Console.log("rendered")();
-            Effect_Console.log(Data_Show.show(Data_Show.showArray(Data_Tuple.showTuple(Data_Show.showInt)(Data_Show.showInt)))(e))();
-            render_play_map(ctx)(play_map_)();
-            draw_exploration_blocks(ctx)(e)();
-            Graphics_Canvas.setFillStyle(ctx)("rgba(187, 143, 206, 0.5)")();
-            Graphics_Canvas.fillRect(ctx)({
-                x: Data_Int.toNumber(x) * block_width,
-                y: Data_Int.toNumber(y) * block_height,
-                width: block_width,
-                height: block_height
-            })();
-            return draw_player(ctx)(v)();
+    return function (ctx2) {
+        return function (v) {
+            var y = Data_Int.floor(v.pos.value1);
+            var x = Data_Int.floor(v.pos.value0);
+            var o = dda(screen_resolution)(v);
+            var e = Data_Array.nub(Data_Tuple.ordTuple(Data_Ord.ordInt)(Data_Ord.ordInt))(Data_Array.concat(Data_Functor.map(Data_Functor.functorArray)(function (x1) {
+                return x1.explored_blocks;
+            })(o)));
+            return function __do() {
+                Effect_Console.log("rendered")();
+                Effect_Console.log(Data_Show.show(Data_Show.showArray(Data_Tuple.showTuple(Data_Show.showInt)(Data_Show.showInt)))(e))();
+                render_play_map(ctx)(play_map_)();
+                draw_exploration_blocks(ctx)(e)();
+                Graphics_Canvas.setFillStyle(ctx)("rgba(187, 143, 206, 0.5)")();
+                Graphics_Canvas.fillRect(ctx)({
+                    x: Data_Int.toNumber(x) * block_width,
+                    y: Data_Int.toNumber(y) * block_height,
+                    width: block_width,
+                    height: block_height
+                })();
+                draw_player(ctx)(v)();
+                Graphics_Canvas.setFillStyle(ctx2)("black")();
+                Graphics_Canvas.fillRect(ctx2)({
+                    x: 0.0,
+                    y: 0.0,
+                    width: 5.0 * Data_Int.toNumber(screen_resolution),
+                    height: screen_height
+                })();
+                var o_ = Data_Functor.map(Data_Functor.functorArray)(dDAR_to_nurect(v.pos))(o);
+                Effect_Console.log(Data_Show.show(Data_Show.showArray(Data_Show.showString))(Data_Functor.map(Data_Functor.functorArray)(function (x1) {
+                    return x1.colour;
+                })(o_)))();
+                return Data_Foldable.traverse_(Effect.applicativeEffect)(Data_Foldable.foldableArray)(vanilla_render_nu_rect(ctx2))(o_)();
+            };
         };
     };
 };
-var get_crackin = function (canvas) {
-    return function (w) {
-        return function (h) {
-            return function __do() {
-                var v = Graphics_Canvas.getContext2D(canvas)();
-                var v1 = Graphics_Canvas.setCanvasWidth(canvas)(w)();
-                var v2 = Graphics_Canvas.setCanvasHeight(canvas)(h)();
-                render_play_map(v)(play_map_)();
-                var v3 = FRP_Event.subscribe(position_stream(init_state))(animation_fn(v))();
-                return Data_Unit.unit;
+var get_crackin = function (eagle) {
+    return function (screen) {
+        return function (w) {
+            return function (h) {
+                return function __do() {
+                    var v = Graphics_Canvas.getContext2D(eagle)();
+                    var v1 = Graphics_Canvas.setCanvasWidth(eagle)(w)();
+                    var v2 = Graphics_Canvas.setCanvasHeight(eagle)(h)();
+                    var v3 = Graphics_Canvas.getContext2D(screen)();
+                    var v4 = Graphics_Canvas.setCanvasWidth(screen)(5.0 * Data_Int.toNumber(screen_resolution))();
+                    var v5 = Graphics_Canvas.setCanvasHeight(screen)(screen_height)();
+                    var v6 = FRP_Event.subscribe(position_stream(init_state))(animation_fn(v)(v3))();
+                    return Data_Unit.unit;
+                };
             };
         };
     };
@@ -25438,13 +25550,20 @@ var main = (function () {
     var h = Data_Int.toNumber(map_height) * block_height;
     return function __do() {
         var v = Graphics_Canvas.getCanvasElementById("canvas")();
+        var v1 = Graphics_Canvas.getCanvasElementById("screen")();
         if (v instanceof Data_Maybe.Nothing) {
             return Effect_Console.log("Canvas element not found!! check ID!!")();
         };
         if (v instanceof Data_Maybe.Just) {
-            return get_crackin(v.value0)(w)(h)();
+            if (v1 instanceof Data_Maybe.Nothing) {
+                return Effect_Console.log("Second canvas element not found")();
+            };
+            if (v1 instanceof Data_Maybe.Just) {
+                return get_crackin(v.value0)(v1.value0)(w)(h)();
+            };
+            throw new Error("Failed pattern match at Main line 475, column 28 - line 476, column 72: " + [ v1.constructor.name ]);
         };
-        throw new Error("Failed pattern match at Main line 391, column 3 - line 392, column 44: " + [ v.constructor.name ]);
+        throw new Error("Failed pattern match at Main line 474, column 3 - line 476, column 73: " + [ v.constructor.name ]);
     };
 })();
 module.exports = {
@@ -25453,6 +25572,8 @@ module.exports = {
     map_height: map_height,
     block_width: block_width,
     block_height: block_height,
+    screen_resolution: screen_resolution,
+    screen_height: screen_height,
     vel: vel,
     rvel: rvel,
     string_to_color: string_to_color,
@@ -25472,6 +25593,13 @@ module.exports = {
     rotate_ccw: rotate_ccw,
     guard_against: guard_against,
     movement: movement,
+    light_color: light_color,
+    dark_color: dark_color,
+    calculate_perp_distance: calculate_perp_distance,
+    calculate_height_coords: calculate_height_coords,
+    dDAR_to_nurect: dDAR_to_nurect,
+    vanilla_render_nu_rect: vanilla_render_nu_rect,
+    screen_animation_fn: screen_animation_fn,
     animation_fn: animation_fn,
     down_with_init_point: down_with_init_point,
     position_stream: position_stream,
@@ -25488,7 +25616,7 @@ module.exports = {
     main: main
 };
 
-},{"../Control.Alt/index.js":1,"../Control.Applicative/index.js":3,"../Control.Bind/index.js":9,"../Control.MonadZero/index.js":30,"../Control.Semigroupoid/index.js":32,"../Data.Array/index.js":39,"../Data.Bifunctor/index.js":47,"../Data.Eq/index.js":68,"../Data.EuclideanRing/index.js":70,"../Data.Foldable/index.js":74,"../Data.Function/index.js":78,"../Data.Functor/index.js":81,"../Data.Int/index.js":90,"../Data.Maybe/index.js":104,"../Data.Ord/index.js":123,"../Data.Ring/index.js":126,"../Data.Semigroup/index.js":132,"../Data.Semiring/index.js":134,"../Data.Show/index.js":137,"../Data.Traversable/index.js":151,"../Data.Tuple/index.js":153,"../Data.Unit/index.js":159,"../Effect.Console/index.js":163,"../Effect/index.js":174,"../FRP.Event.Class/index.js":175,"../FRP.Event.Keyboard/index.js":176,"../FRP.Event/index.js":177,"../Graphics.Canvas/index.js":183,"../Math/index.js":186,"../Prelude/index.js":191}],185:[function(require,module,exports){
+},{"../Control.Alt/index.js":1,"../Control.Applicative/index.js":3,"../Control.Bind/index.js":9,"../Control.MonadZero/index.js":30,"../Control.Semigroupoid/index.js":32,"../Data.Array/index.js":39,"../Data.Bifunctor/index.js":47,"../Data.Eq/index.js":68,"../Data.EuclideanRing/index.js":70,"../Data.Foldable/index.js":74,"../Data.Function/index.js":78,"../Data.Functor/index.js":81,"../Data.Int/index.js":90,"../Data.Map.Internal/index.js":100,"../Data.Map/index.js":101,"../Data.Maybe/index.js":104,"../Data.Ord/index.js":123,"../Data.Ring/index.js":126,"../Data.Semigroup/index.js":132,"../Data.Semiring/index.js":134,"../Data.Show/index.js":137,"../Data.Traversable/index.js":151,"../Data.Tuple/index.js":153,"../Data.Unit/index.js":159,"../Effect.Console/index.js":163,"../Effect/index.js":174,"../FRP.Event.Class/index.js":175,"../FRP.Event.Keyboard/index.js":176,"../FRP.Event/index.js":177,"../Graphics.Canvas/index.js":183,"../Math/index.js":186,"../Prelude/index.js":191}],185:[function(require,module,exports){
 "use strict";
 
 // module Math

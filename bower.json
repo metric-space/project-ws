@@ -17,7 +17,8 @@
     "purescript-tuples": "^5.1.0",
     "purescript-control": "^4.1.0",
     "purescript-bifunctors": "^4.0.0",
-    "purescript-math": "^2.1.1"
+    "purescript-math": "^2.1.1",
+    "purescript-ordered-collections": "^1.4.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"

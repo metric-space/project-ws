@@ -7,7 +7,8 @@ import Data.Array            ((!!), length, mapWithIndex, range, concat, nub)
 import Data.Bifunctor        (bimap, lmap, rmap)
 import Data.Int              (toNumber, floor)
 import Data.Maybe            (fromMaybe, maybe, Maybe(..))
-import Data.Traversable      (traverse_)
+import Data.Map              (fromFoldable, Map, lookup)
+import Data.Traversable      (traverse_, sequence)
 import Data.Tuple            (Tuple(..), fst, snd)
 import Effect                (Effect)
 import Effect.Console        (log)
@@ -64,6 +65,13 @@ block_width = 30.0
 block_height :: Number
 block_height = 30.0
 
+
+screen_resolution :: Int
+screen_resolution = 50
+
+
+screen_height :: Number
+screen_height = 400.0
 
 vel :: Number
 vel = 0.15
@@ -229,24 +237,90 @@ movement svalue  s = case svalue of "ArrowUp" -> fromMaybe s (guard_against <<< 
 -- ============================================================================
 
 
-animation_fn :: Context2D -> State -> Effect Unit
-animation_fn ctx a@{pos: (Tuple x_ y_)} = do
-                                          let x = floor x_
-                                              y = floor y_
+light_color :: Map Int String
+light_color = fromFoldable [Tuple 1 "#59DEEE", Tuple 2 "#EED359", Tuple 3 "#C5EE59", Tuple 4 "#EE9259"]
 
-                                              e :: Array (Tuple Int Int)
-                                              e = (nub <<< concat <<< (map (\x -> x.explored_blocks))) $ (dda 50 a)
-                                          log "rendered"
-                                          log <<< show $ e
-                                          render_play_map ctx play_map_
-                                          draw_exploration_blocks ctx e
-                                          -- render block
-                                          setFillStyle ctx "rgba(187, 143, 206, 0.5)"
-                                          fillRect ctx {x: (toNumber x)*block_width, 
-                                                        y: (toNumber y)*block_height, 
-                                                        width: block_width, 
-                                                        height: block_height}
-                                          draw_player ctx a
+
+dark_color :: Map Int String
+dark_color = fromFoldable [Tuple 1 "blue", Tuple 2 "yellow", Tuple 3 "green", Tuple 4 "red"]
+
+
+calculate_perp_distance :: DDAR -> (Tuple Number Number) -> Number
+calculate_perp_distance {wall_block ,x, ray_dir, step_x, step_y} pos = let a = bimap toNumber toNumber wall_block 
+                                                                           (Tuple rx ry) = ray_dir
+                                                                           (Tuple x_ y_) = (add (sub a pos) (Tuple ((1.0-step_x)/2.0) ((1.0 - step_y)/2.0)))
+                                                                       in if x
+                                                                            then screen_height * x_ / rx
+                                                                            else screen_height * y_ / ry
+
+calculate_height_coords :: Number -> (Tuple Number Number)
+calculate_height_coords p = let h = screen_height/2.0 
+                                h1 = (-p/2.0) + h
+                                h1_ = if h1 < 0.0
+                                        then 0.0
+                                        else h1
+                                h2 = (p/2.0) + h
+                                h2_ = if h2 >= screen_height
+                                        then screen_height - 1.0
+                                        else h2
+                            in (Tuple h1_ h2_)
+
+
+dDAR_to_nurect :: (Tuple Number Number) -> DDAR -> NuRectangle
+dDAR_to_nurect pos ddar = let p = calculate_perp_distance ddar pos
+                              (Tuple h1 h2) = calculate_height_coords p
+                              (Tuple x y) = ddar.wall_block
+                              i = ((play_map !! x) >>= (_ !! y))
+                              color = if ddar.x
+                                          then fromMaybe "white" (i >>= (\t -> lookup t dark_color))
+                                          else fromMaybe "white" (i >>= (\t -> lookup t light_color))
+                          in {colour: color, r: {x:(ddar.x_p * 5.0) , y: h1, width: 5.0, height: (h2 - h1)}}
+
+
+vanilla_render_nu_rect :: Context2D -> NuRectangle -> Effect Unit
+vanilla_render_nu_rect ctx r = do 
+                                setFillStyle ctx r.colour
+                                fillRect ctx r.r
+
+
+screen_animation_fn :: Context2D -> State -> Array DDAR -> Effect Unit
+screen_animation_fn ctx {pos} d = do 
+                                    let kk = map (dDAR_to_nurect pos) d
+                                    traverse_ (vanilla_render_nu_rect ctx) kk
+                                       
+
+
+animation_fn :: Context2D -> Context2D -> State -> Effect Unit
+animation_fn ctx ctx2 a@{pos: (Tuple x_ y_)} = do
+                                                let x = floor x_
+                                                    y = floor y_
+
+                                                    o =  dda screen_resolution a
+
+                                                    e :: Array (Tuple Int Int)
+                                                    e = (nub <<< concat <<< (map (\x -> x.explored_blocks))) $ o
+                                                log "rendered"
+                                                log <<< show $ e
+                                                render_play_map ctx play_map_
+                                                draw_exploration_blocks ctx e
+                                                -- render block
+                                                setFillStyle ctx "rgba(187, 143, 206, 0.5)"
+                                                fillRect ctx {x: (toNumber x)*block_width, 
+                                                              y: (toNumber y)*block_height, 
+                                                              width: block_width, 
+                                                              height: block_height}
+                                                draw_player ctx a
+ 
+                                                -- screen stuff
+                                                setFillStyle ctx2 "black"
+                                                fillRect ctx2 {x: 0.0, y:0.0, 
+                                                               width: 5.0 * (toNumber screen_resolution),
+                                                               height: screen_height}
+
+                                                let o_ = map (dDAR_to_nurect a.pos) o
+                                                log <<< show $ (map (\x -> x.colour) o_)
+                                                traverse_ (vanilla_render_nu_rect ctx2) o_
+                                                
 
 
 -- =====================================================================================
@@ -273,7 +347,11 @@ position_stream i = fold movement down_with_init_point i
 
 type DDAR = {wall_block      :: Tuple Int Int, 
              explored_blocks :: Array (Tuple Int Int),
-             x               :: Boolean}
+             x               :: Boolean,
+             x_p             :: Number,
+             ray_dir         :: (Tuple Number Number),
+             step_x          :: Number,
+             step_y          :: Number}
 
 
 type RSEARCH = { continue :: Boolean ,
@@ -335,7 +413,7 @@ hit_search {continue,searched,accum,x_side} map_ d@(Tuple dx dy) s@{step_x,step_
                                           searched:  [nmap] <> searched ,
                                           accum: accum_ , x_side:x_bias} map__ d s 
                    
-          else {wall_block: (bimap floor floor map_), explored_blocks: searched, x: x_side} 
+          else {wall_block: (bimap floor floor map_), explored_blocks: searched, x: x_side, ray_dir: (Tuple 0.0 0.0), x_p : 0.0, step_x: step_x , step_y} 
              
             
 explore :: (Tuple Number Number) -> (Tuple Number Number) -> STEP -> DDAR
@@ -352,7 +430,7 @@ dda_mini x w s = let camera_x                    = camera_position x w
                      map_                        = bimap (toNumber <<< floor) (toNumber <<< floor) s.pos
                      deltas                      = bimap g g ray_dir
                      step                        = side_dists ray_dir deltas map_ s.pos
-                 in explore map_ deltas step
+                 in ((explore map_ deltas step) { ray_dir = ray_dir ,x_p = x })
 
               
 dda :: Int -> State -> Array DDAR
@@ -372,21 +450,27 @@ init_state = {pos: Tuple 1.0 1.0,
               cam: Tuple 0.0 0.66}
 
 
-get_crackin :: CanvasElement -> Number -> Number -> Effect Unit
-get_crackin canvas w h  = do
-    ctx <- getContext2D canvas
-    _ <- setCanvasWidth canvas w
-    _ <- setCanvasHeight canvas h
+get_crackin :: CanvasElement -> CanvasElement -> Number -> Number -> Effect Unit
+get_crackin eagle screen w h  = do
+    ctx1 <- getContext2D eagle
+    _ <- setCanvasWidth eagle w
+    _ <- setCanvasHeight eagle h
 
-    render_play_map ctx play_map_
-    _ <- subscribe (position_stream init_state) (animation_fn ctx) 
+    ctx2 <- getContext2D screen
+    _ <- setCanvasWidth screen (5.0*(toNumber screen_resolution))
+    _ <- setCanvasHeight screen screen_height
+
+    _ <- subscribe (position_stream init_state) (animation_fn ctx1 ctx2) 
     pure unit
     
+
     
 main :: Effect Unit
 main = do
   let w = (toNumber map_width) * block_width
       h = (toNumber map_height) * block_height
-  canvas <- getCanvasElementById "canvas" 
-  case canvas of Nothing -> log "Canvas element not found!! check ID!!"
-                 Just c -> get_crackin c w h 
+  eagle <- getCanvasElementById "canvas" 
+  screen <- getCanvasElementById "screen"
+  case eagle of Nothing -> log "Canvas element not found!! check ID!!"
+                Just c -> (case screen of Nothing -> log "Second canvas element not found"
+                                          Just d -> get_crackin c d w h )
